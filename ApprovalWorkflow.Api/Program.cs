@@ -1,26 +1,27 @@
-   using ApprovalWorkflow.Domain;
+using ApprovalWorkflow.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
-   var builder = WebApplication.CreateBuilder(args);
-   builder.Services.AddOpenApi();
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddOpenApi();
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite("Data Source=approvals.db"));
 
-   var app = builder.Build();
+var app = builder.Build();
 
-   if (app.Environment.IsDevelopment())
-   {
-       app.MapOpenApi();
-   }
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
-   app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
 
-   app.MapGet("/requests", () =>
-   {
-       var requests = new List<ApprovalRequest>
-       {
-           new() { Id = 1, Title = "Laptop purchase", RequestedBy = "Aman", Status = RequestStatus.Submitted },
-           new() { Id = 2, Title = "Leave request", RequestedBy = "Riya", Status = RequestStatus.Approved },
-           new() { Id = 3, Title = "Travel claim", RequestedBy = "Karan", Status = RequestStatus.Draft }
-       };
-       return requests;
-   });
+app.UseHttpsRedirection();
 
-   app.Run();
+app.MapGet("/requests", async (AppDbContext db) =>
+    await db.ApprovalRequests.AsNoTracking().ToListAsync());
+
+app.Run();
